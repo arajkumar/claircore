@@ -92,7 +92,7 @@ func get(ctx context.Context, records []*claircore.IndexRecord, opts vulnstore.G
 				Description:        reports.Result.Recommendation.Message,
 				Links:              "",
 				Severity:           fmt.Sprint(reports.Result.Recommendation.ComponentAnalysis.Cve[0].Cvss),
-				NormalizedSeverity: "",
+				// NormalizedSeverity: "",
 				FixedInVersion:     reports.Result.Data[0].Cvee.Fixed_in[0],
 				Package: &claircore.Package{ID: "0",
 					Name:    "xyz",
