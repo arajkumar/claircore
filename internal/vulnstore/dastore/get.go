@@ -1,18 +1,14 @@
 package dastore
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-    "bytes"
-	//"strconv"
-    "sync"
 	"github.com/rs/zerolog"
-
-	"encoding/json"
+    "encoding/json"
 	"io/ioutil"
 	"net/http"
-
-	"github.com/quay/claircore"
+    "github.com/quay/claircore"
 	"github.com/quay/claircore/internal/vulnstore"
 )
 
@@ -56,159 +52,99 @@ type Report struct {
 
 type Request struct {
 	Ecosystem string `json:"ecosystem"`
-	Package string `json:"package"`
-	Version string `json:"version"`
+	Package   string `json:"package"`
+	Version   string `json:"version"`
 }
 
-func call(req []Request,ids []string, results map[string][]*claircore.Vulnerability, wg *sync.WaitGroup){
+type ReportsId struct {
+	Response []Report
+	//	Ids []string
+	startInd int
+}
+
+func call(req []Request, startInd int, c chan ReportsId) {
 
 	fmt.Println("Inside call")
-   jsonValue, _ := json.Marshal(req)
-   // fmt.Println(jsonValue)
+	jsonValue, _ := json.Marshal(req)
 	response, err := http.Post("https://f8a-analytics-2445582058137.production.gw.apicast.io:443/api/v1/component-analyses/?user_key=9e7da76708fe374d8c10fa752e72989f", "application/json", bytes.NewBuffer(jsonValue))
-	 if err != nil {
-		 fmt.Printf("The HTTP request failed with error %s\n", err)
-	 } else {
-		 fmt.Println("HII")
-		 var da_response []Report
- 
-		
-		 data, _ := ioutil.ReadAll(response.Body)
-	//	 fmt.Println(len(data),id)
- 
-		  err = json.Unmarshal(data, &da_response)
-		 if err != nil {
-			 fmt.Println(err)
-		 }
-	//     fmt.Println(len(da_response))
- 
-	  //   fmt.Println(da_response[0])
- 
-	fmt.Println("Printing length of data ",len(data))
-
-
-	  for i:=0;i<len(ids);i++{
-
-          
-		 	          if len(da_response[i].Result.Recommendation.ComponentAnalysis.Cve)>0 {
-
-					//	var v *claircore.Vulnerability
-						fmt.Println("Printing cve array ",da_response[i].Result.Recommendation.ComponentAnalysis.Cve)
-                         var vulnArray []*claircore.Vulnerability
-
-				//		for k:=0;k<len(da_response[i].Result.Recommendation.ComponentAnalysis.Cve);k++{
-					//		fmt.Println("Inside ", da_response[i].Result.Recommendation.ComponentAnalysis.Cve[k].Idd)
-						  vulnArray=append(vulnArray,&claircore.Vulnerability{
-						ID:                 ids[i],
-							Updater:            "",
-				 			Name:               da_response[i].Result.Recommendation.ComponentAnalysis.Cve[0].Idd,
-							Description:        da_response[i].Result.Recommendation.Message,
-	 					Links:              "",
-		 	 			Severity:           fmt.Sprint(da_response[i].Result.Recommendation.ComponentAnalysis.Cve[0].Cvss),
-							// NormalizedSeverity: "",
-				 			FixedInVersion:     da_response[i].Result.Data[0].Cvee.Fixed_in[0],
-			 			Package: &claircore.Package{ID: "0",
-				 				Name:    "xyz",
-								Version: "v0.0"},
-						Dist: &claircore.Distribution{},
-						Repo: &claircore.Repository{},
-				  })
-
-					  results[ids[i]] = vulnArray
-					}
-				 
-			   }
-	 }
- 
-	 wg.Done()
- 
-  }
-
+	if err != nil {
+		fmt.Printf("The HTTP request failed with error %s\n", err)
+	} else {
+		var da_response []Report
+		data, _ := ioutil.ReadAll(response.Body)
+		err = json.Unmarshal(data, &da_response)
+		if err != nil {
+			fmt.Println(err)
+		}
+		result := ReportsId{Response: da_response, startInd: startInd}
+		c <- result
+	}
+}
 
 func get(ctx context.Context, records []*claircore.IndexRecord, opts vulnstore.GetOpts) (map[string][]*claircore.Vulnerability, error) {
 	log := zerolog.Ctx(ctx).With().
 		Str("component", "internal/vulnstore/dastore/get").
 		Logger()
 	ctx = log.WithContext(ctx)
-
-
-	fmt.Println("Inside DA Store")
-     fmt.Println(len(records))
-
-
-	// s1 := "https://f8a-analytics-2445582058137.production.gw.apicast.io/api/v1/component-analyses/pypi/"
-	// s2 := "?user_key=9e7da76708fe374d8c10fa752e72989f"
-
 	results := make(map[string][]*claircore.Vulnerability)
-	//position := 0
-
-	 
-	 iterations:=(len(records)/10)
-
-	if (len(records)%10 == 0){
-		iterations=iterations+0
-	}else{
-		iterations=iterations+1
+	iterations := (len(records) / 10)
+	if len(records)%10 == 0 {
+		iterations = iterations + 0
+	} else {
+		iterations = iterations + 1
 	}
-//	+((len(records)%10)==0 ? 0 : 1)
-	
-	total_records:=len(records)
-
-	for i:=0;i<iterations;i++{
-
+	total_records := len(records)
+	ch := make(chan ReportsId, iterations-1)
+	for i := 0; i < iterations; i++ {
 		var req []Request
-	  
-		  start_record:=i*10
-      //    start_record:=0
-		  var end_record int
+		start_record := i * 10
+		var end_record int
+		if total_records >= 10 {
+			end_record = start_record + 9
+		} else {
+			end_record = start_record + total_records - 1
+		}
+		if total_records >= 10 {
+			total_records = total_records - 10
+		} else {
+			total_records = 0
+		}
+		for record := start_record; record <= end_record; record++ {
+			req = append(req, Request{Ecosystem: "pypi", Package: records[record].Package.Name, Version: records[record].Package.Version})
+		}
+		go call(req, start_record, ch)
+	}
 
-		  if total_records>=10{
-			  end_record=start_record+9
-		  }else{
-			  end_record=start_record + total_records -1
-		  }
+	for i := 0; i < iterations; i++ {
+		ans := <-ch
+		fmt.Println("Printing response ", ans.startInd)
+		offset := ans.startInd
+		response := ans.Response
+		for i := 0; i < len(response); i++ {
+			if len(response[i].Result.Recommendation.ComponentAnalysis.Cve) > 0 {
+				var vulnArray []*claircore.Vulnerability
+				vulnArray = append(vulnArray, &claircore.Vulnerability{
+					ID:          records[i+offset].Package.ID,
+					Updater:     "",
+					Name:        response[i].Result.Recommendation.ComponentAnalysis.Cve[0].Idd,
+					Description: response[i].Result.Recommendation.Message,
+					Links:       "",
+					Severity:    fmt.Sprint(response[i].Result.Recommendation.ComponentAnalysis.Cve[0].Cvss),
+					// 						// NormalizedSeverity: "",
+					FixedInVersion: response[i].Result.Data[0].Cvee.Fixed_in[0],
+					Package: &claircore.Package{ID: "0",
+						Name:    "xyz",
+						Version: "v0.0"},
+					Dist: &claircore.Distribution{},
+					Repo: &claircore.Repository{},
+				})
 
-		  if total_records>=10{
-			  total_records=total_records-10
-	  
-		  }else{
-			  total_records=0
-		  }
+				results[records[i+offset].Package.ID] = vulnArray
+			}
 
-		var ids []string
-			 for record:=start_record;record<=end_record;record++{
-
-			 req=append(req,Request{Ecosystem: "pypi",Package: records[record].Package.Name, Version: records[record].Package.Version})   
-			 ids=append(ids,records[record].Package.ID)   
-			  
-		  }
-
-
-			
-			
-
-
-
-		  var wg sync.WaitGroup
-
-		  wg.Add(1)
-
-		 go call(req,ids,results,&wg)
-		 
-		 wg.Wait()
-
-
-		
-			fmt.Println("Iteration ",i)
-		//    fmt.Println((da_response))
-	 
-		   // fmt.Println(da_response[0])
 		}
 
-		
-		     
-
-
+	}
 
 	return results, nil
 
