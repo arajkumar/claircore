@@ -10,7 +10,14 @@ import (
 	"net/http"
     "github.com/quay/claircore"
 	"github.com/quay/claircore/internal/vulnstore"
+    )
+
+const (
+     batchSize = 10
+     url = `https://f8a-analytics-2445582058137.production.gw.apicast.io:443/api/v1/component-analyses/?user_key=9e7da76708fe374d8c10fa752e72989f`
 )
+
+// var wg sync.WaitGroup
 
 type Cvee struct {
 	Cve_id   []string `json:"cve_id"`
@@ -58,15 +65,13 @@ type Request struct {
 
 type ReportsId struct {
 	Response []Report
-	//	Ids []string
-	startInd int
+        startInd int
 }
 
 func call(req []Request, startInd int, c chan ReportsId) {
-
 	fmt.Println("Inside call")
 	jsonValue, _ := json.Marshal(req)
-	response, err := http.Post("https://f8a-analytics-2445582058137.production.gw.apicast.io:443/api/v1/component-analyses/?user_key=9e7da76708fe374d8c10fa752e72989f", "application/json", bytes.NewBuffer(jsonValue))
+	response, err := http.Post(url, "application/json", bytes.NewBuffer(jsonValue))
 	if err != nil {
 		fmt.Printf("The HTTP request failed with error %s\n", err)
 	} else {
@@ -79,6 +84,8 @@ func call(req []Request, startInd int, c chan ReportsId) {
 		result := ReportsId{Response: da_response, startInd: startInd}
 		c <- result
 	}
+
+         
 }
 
 func get(ctx context.Context, records []*claircore.IndexRecord, opts vulnstore.GetOpts) (map[string][]*claircore.Vulnerability, error) {
@@ -87,39 +94,39 @@ func get(ctx context.Context, records []*claircore.IndexRecord, opts vulnstore.G
 		Logger()
 	ctx = log.WithContext(ctx)
 	results := make(map[string][]*claircore.Vulnerability)
-	iterations := (len(records) / 10)
-	if len(records)%10 == 0 {
-		iterations = iterations + 0
-	} else {
-		iterations = iterations + 1
-	}
+	iterations := (len(records) / batchSize)
+	if (len(records)%batchSize)!=0{
+		iterations++
+	} 
 	total_records := len(records)
 	ch := make(chan ReportsId, iterations-1)
 	for i := 0; i < iterations; i++ {
 		var req []Request
-		start_record := i * 10
+		start_record := i * batchSize
 		var end_record int
-		if total_records >= 10 {
-			end_record = start_record + 9
+		if total_records >= batchSize {
+			end_record = start_record + batchSize - 1
 		} else {
 			end_record = start_record + total_records - 1
 		}
-		if total_records >= 10 {
-			total_records = total_records - 10
+		if total_records >= batchSize {
+			total_records = total_records - batchSize
 		} else {
 			total_records = 0
 		}
 		for record := start_record; record <= end_record; record++ {
 			req = append(req, Request{Ecosystem: "pypi", Package: records[record].Package.Name, Version: records[record].Package.Version})
 		}
+    
 		go call(req, start_record, ch)
 	}
-
-	for i := 0; i < iterations; i++ {
-		ans := <-ch
-		fmt.Println("Printing response ", ans.startInd)
-		offset := ans.startInd
-		response := ans.Response
+   
+ 
+	for i:=0;i<iterations;i++ {
+		res := <-ch
+		fmt.Println("Printing response ", res.startInd)
+		offset := res.startInd
+		response := res.Response
 		for i := 0; i < len(response); i++ {
 			if len(response[i].Result.Recommendation.ComponentAnalysis.Cve) > 0 {
 				var vulnArray []*claircore.Vulnerability
@@ -145,7 +152,6 @@ func get(ctx context.Context, records []*claircore.IndexRecord, opts vulnstore.G
 		}
 
 	}
-
-	return results, nil
+         return results, nil
 
 }
