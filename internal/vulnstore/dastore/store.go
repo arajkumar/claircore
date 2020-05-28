@@ -16,7 +16,7 @@ type Store struct {
 func (s Store) Get(ctx context.Context, records []*claircore.IndexRecord, opts vulnstore.GetOpts) (map[string][]*claircore.Vulnerability, error) {
 	// filter out the python packages by looping for the records
 	//change.....................
-	fmt.Printf("Connection made")
+	fmt.Printf("Connection made ")
 	vulns, err := get(ctx, records, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get vulnerabilites: %v", err)
