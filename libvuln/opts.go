@@ -7,6 +7,7 @@ import (
 
 	"github.com/quay/claircore/alpine"
 	"github.com/quay/claircore/aws"
+	"github.com/quay/claircore/crda"
 	"github.com/quay/claircore/debian"
 	"github.com/quay/claircore/libvuln/driver"
 	"github.com/quay/claircore/python"
@@ -68,6 +69,7 @@ var defaultMatchers = []driver.Matcher{
 	&alpine.Matcher{},
 	&aws.Matcher{},
 	&debian.Matcher{},
+	&crda.Matcher{},
 	&python.Matcher{},
 	&ubuntu.Matcher{},
 	&rhel.Matcher{},
