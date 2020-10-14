@@ -46,8 +46,8 @@ type matcherTestcase struct {
 	Matcher  *Matcher
 }
 
-func newMatcher(t *testing.T, srv *httptest.Server, repo *claircore.Repository) *Matcher {
-	m, err := NewMatcher(WithClient(srv.Client()), WithURL(srv.URL), WithRepo(repo))
+func newMatcher(t *testing.T, srv *httptest.Server) *Matcher {
+	m, err := NewMatcher(WithClient(srv.Client()), WithURL(srv.URL))
 	if err != nil {
 		t.Errorf("there should be no err %v", err)
 	}
@@ -69,7 +69,7 @@ func TestRemoteMatcher(t *testing.T) {
 			Name:     "pypi/empty",
 			R:        []*claircore.IndexRecord{},
 			Expected: map[string][]*claircore.Vulnerability{},
-			Matcher:  newMatcher(t, srv, &pypiRepo),
+			Matcher:  newMatcher(t, srv),
 		},
 		{
 			Name: "pypi/{pyyaml-vuln,flask-novuln}",
@@ -80,6 +80,7 @@ func TestRemoteMatcher(t *testing.T) {
 						Name:    "pyyaml",
 						Version: "5.3",
 					},
+					Repository: &pypiRepo,
 				},
 				{
 					Package: &claircore.Package{
@@ -87,6 +88,7 @@ func TestRemoteMatcher(t *testing.T) {
 						Name:    "flask",
 						Version: "1.1.0",
 					},
+					Repository: &pypiRepo,
 				},
 			},
 			Expected: map[string][]*claircore.Vulnerability{
@@ -109,7 +111,7 @@ func TestRemoteMatcher(t *testing.T) {
 					},
 				},
 			},
-			Matcher: newMatcher(t, srv, &pypiRepo),
+			Matcher: newMatcher(t, srv),
 		},
 		{
 			Name: "pypi/{pyyaml-novuln,flask-novuln}",
@@ -120,6 +122,7 @@ func TestRemoteMatcher(t *testing.T) {
 						Name:    "pyyaml",
 						Version: "5.3.1",
 					},
+					Repository: &pypiRepo,
 				},
 				{
 					Package: &claircore.Package{
@@ -127,10 +130,11 @@ func TestRemoteMatcher(t *testing.T) {
 						Name:    "flask",
 						Version: "1.1.0",
 					},
+					Repository: &pypiRepo,
 				},
 			},
 			Expected: map[string][]*claircore.Vulnerability{},
-			Matcher:  newMatcher(t, srv, nil),
+			Matcher:  newMatcher(t, srv),
 		},
 		{
 			Name: "pypi/{pyyaml-vuln,flask-vuln}",
@@ -141,6 +145,7 @@ func TestRemoteMatcher(t *testing.T) {
 						Name:    "pyyaml",
 						Version: "5.3",
 					},
+					Repository: &pypiRepo,
 				},
 				{
 					Package: &claircore.Package{
@@ -148,6 +153,7 @@ func TestRemoteMatcher(t *testing.T) {
 						Name:    "flask",
 						Version: "0.12",
 					},
+					Repository: &pypiRepo,
 				},
 			},
 			Expected: map[string][]*claircore.Vulnerability{
@@ -165,7 +171,7 @@ func TestRemoteMatcher(t *testing.T) {
 							Name:    "pyyaml",
 							Version: "5.3",
 						},
-						Repo:           &defaultRepo,
+						Repo:           &pypiRepo,
 						FixedInVersion: "5.3.1",
 					},
 				},
@@ -183,7 +189,7 @@ func TestRemoteMatcher(t *testing.T) {
 							Name:    "flask",
 							Version: "0.12",
 						},
-						Repo:           &defaultRepo,
+						Repo:           &pypiRepo,
 						FixedInVersion: "0.12.3",
 					},
 					{
@@ -199,12 +205,12 @@ func TestRemoteMatcher(t *testing.T) {
 							Name:    "flask",
 							Version: "0.12",
 						},
-						Repo:           &defaultRepo,
+						Repo:           &pypiRepo,
 						FixedInVersion: "0.12.3, 0.12.4",
 					},
 				},
 			},
-			Matcher: newMatcher(t, srv, nil),
+			Matcher: newMatcher(t, srv),
 		}}
 	for _, tc := range tt {
 		t.Run(tc.Name, tc.Run)

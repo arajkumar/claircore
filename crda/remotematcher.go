@@ -20,25 +20,20 @@ import (
 var (
 	_ driver.Matcher       = (*Matcher)(nil)
 	_ driver.RemoteMatcher = (*Matcher)(nil)
-
-	defaultRepo = claircore.Repository{
-		Name: "pypi",
-		URI:  "https://pypi.org/simple",
-	}
 )
 
 const (
 	// Bounded concurrency limit.
-	concurrencyLimit = 10
-	defaultURL       = "https://f8a-analytics-preview-2445582058137.production.gw.apicast.io/?user_key=3e42fa66f65124e6b1266a23431e3d08"
+	defaultRequestConcurrency = 10
+	defaultURL                = "https://f8a-analytics-preview-2445582058137.production.gw.apicast.io/?user_key=3e42fa66f65124e6b1266a23431e3d08"
 )
 
 // Matcher attempts to correlate discovered python packages with reported
 // vulnerabilities.
 type Matcher struct {
-	client *http.Client
-	url    *url.URL
-	repo   *claircore.Repository
+	client             *http.Client
+	url                *url.URL
+	requestConcurrency int
 }
 
 // Build struct to model CRDA V2 ComponentAnalysis response which
@@ -85,8 +80,9 @@ func NewMatcher(opt ...Option) (*Matcher, error) {
 	if m.client == nil {
 		m.client = http.DefaultClient
 	}
-	if m.repo == nil {
-		m.repo = &defaultRepo
+	// defaults to a sane concurrency limit.
+	if m.requestConcurrency < 1 {
+		m.requestConcurrency = defaultRequestConcurrency
 	}
 
 	return &m, nil
@@ -116,13 +112,12 @@ func WithURL(uri string) Option {
 	}
 }
 
-// WithRepo sets the repository information that will be associated with all the
-// vulnerabilites found.
+// WithRequestConcurrency sets the concurrency limit for the network calls.
 //
-// If not passed to NewMatcher, a default Repository will be used.
-func WithRepo(r *claircore.Repository) Option {
+// If not passed to NewMatcher, a defaultRequestConcurrency will be used.
+func WithRequestConcurrency(requestConcurrency int) Option {
 	return func(m *Matcher) error {
-		m.repo = r
+		m.requestConcurrency = requestConcurrency
 		return nil
 	}
 }
@@ -183,8 +178,8 @@ func (m *Matcher) QueryRemoteMatcher(ctx context.Context, records []*claircore.I
 }
 
 func (m *Matcher) fetchVulnerabilities(ctx context.Context, records []*claircore.IndexRecord) (chan []*claircore.Vulnerability, chan error) {
-	inC := make(chan *claircore.IndexRecord, concurrencyLimit)
-	ctrlC := make(chan []*claircore.Vulnerability, concurrencyLimit)
+	inC := make(chan *claircore.IndexRecord, m.requestConcurrency)
+	ctrlC := make(chan []*claircore.Vulnerability, m.requestConcurrency)
 	errorC := make(chan error, 1)
 	go func() {
 		defer close(ctrlC)
@@ -255,7 +250,7 @@ func (m *Matcher) componentAnalyses(ctx context.Context, record *claircore.Index
 				NormalizedSeverity: NormalizeSeverity(vuln.Severity),
 				FixedInVersion:     strings.Join(vuln.FixedIn, ", "),
 				Package:            record.Package,
-				Repo:               m.repo,
+				Repo:               record.Repository,
 			})
 		}
 		return vulns, nil
