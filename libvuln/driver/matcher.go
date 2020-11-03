@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/quay/claircore"
 )
@@ -65,4 +66,17 @@ type VersionFilter interface {
 	// A Matcher may return false if it's using a versioning scheme that can't
 	// be completely normalized into a claircore.Version.
 	VersionAuthoritative() bool
+}
+
+// MatcherConfigUnmarshaler can be thought of as an Unmarshal function with the byte
+// slice provided, or a Decode function.
+//
+// The function should populate a passed struct with any configuration
+// information.
+type MatcherConfigUnmarshaler func(interface{}) error
+
+// Configurable is an interface that Updaters can implement to opt-in to having
+// their configuration provided dynamically.
+type ConfigurableMatcher interface {
+	ConfigureMatcher(context.Context, MatcherConfigUnmarshaler, *http.Client) error
 }

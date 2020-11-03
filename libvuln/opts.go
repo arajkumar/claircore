@@ -19,6 +19,7 @@ import (
 	"github.com/quay/claircore/debian"
 	"github.com/quay/claircore/libvuln/driver"
 	"github.com/quay/claircore/libvuln/migrations"
+	"github.com/quay/claircore/matcher"
 	"github.com/quay/claircore/oracle"
 	"github.com/quay/claircore/photon"
 	"github.com/quay/claircore/python"
@@ -92,6 +93,11 @@ type Opts struct {
 	// Client is an http.Client for use by all updaters. If unset,
 	// http.DefaultClient will be used.
 	Client *http.Client
+
+	//Contains configurabele details for the remote matcher
+	RemoteMatcherSets []string
+
+	RemoteMatcherConfigs map[string]driver.MatcherConfigUnmarshaler
 }
 
 // defaultMatchers is a variable containing
@@ -144,6 +150,51 @@ func (o *Opts) parse(ctx context.Context) error {
 	}
 	if o.UpdaterConfigs == nil {
 		o.UpdaterConfigs = make(map[string]driver.ConfigUnmarshaler)
+	}
+
+	return nil
+}
+
+func (o *Opts) matcherSetFunc(ctx context.Context, log zerolog.Logger) error {
+	log = log.With().
+		Str("component", "libvuln/updaterSets").
+		Logger()
+
+	defaults := matcher.Registered()
+
+	if len(o.RemoteMatcherSets) != 0 {
+		for name := range defaults {
+			rm := true
+			for _, wanted := range o.RemoteMatcherSets {
+				if name == wanted {
+					rm = false
+				}
+			}
+			if rm {
+				delete(defaults, name)
+			}
+		}
+	} else {
+		for name := range defaults {
+			delete(defaults, name)
+
+		}
+	}
+
+	err := matcher.Configure(ctx, defaults, o.RemoteMatcherConfigs, o.Client)
+	if err != nil {
+		return err
+	}
+
+	for _, f := range defaults {
+		ms, err := f.MatcherSet(ctx)
+		if err != nil {
+			log.Warn().Err(err).Msg("failed crreating matchers")
+		}
+
+		for _, m := range ms.Matchers() {
+			o.Matchers = append(o.Matchers, m)
+		}
 	}
 
 	return nil
