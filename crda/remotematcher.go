@@ -128,9 +128,21 @@ func WithRequestConcurrency(requestConcurrency int) Option {
 // Name implements driver.Matcher.
 func (*Matcher) Name() string { return "crda" }
 
+func getEcosystem(record *claircore.IndexRecord) *string {
+	if record.Repository == nil {
+		return nil
+	}
+	switch record.Repository.Name {
+	case "maven", "pypi":
+		return &record.Repository.Name
+	default:
+		return nil
+	}
+}
+
 // Filter implements driver.Matcher.
 func (*Matcher) Filter(record *claircore.IndexRecord) bool {
-	return record.Package.NormalizedVersion.Kind == "pep440"
+	return getEcosystem(record) != nil
 }
 
 // Query implements driver.Matcher.
