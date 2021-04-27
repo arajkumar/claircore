@@ -1,4 +1,4 @@
-package pyupio
+package snyk
 
 import (
 	"context"
@@ -13,7 +13,7 @@ func UpdaterSet(_ context.Context) (driver.UpdaterSet, error) {
 	repo := python.Repository
 	py, err := NewUpdater(WithRepo(&repo))
 	if err != nil {
-		return us, fmt.Errorf("failed to create pyupio updater: %v", err)
+		return us, fmt.Errorf("failed to create snyk updater: %v", err)
 	}
 	err = us.Add(py)
 	if err != nil {

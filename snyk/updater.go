@@ -1,6 +1,6 @@
-// Package pyupio provides an updater for importing pyup vulnerability
+// Package snyk provides an updater for importing pyup vulnerability
 // information.
-package pyupio
+package snyk
 
 import (
 	"archive/tar"
@@ -99,7 +99,7 @@ func WithRepo(r *claircore.Repository) Option {
 // The URL should point to a gzip compressed tarball containing a properly
 // formatted json object in a file named `insecure_full.json`.
 //
-// If not passed to NewUpdater, the master branch of github.com/pyupio/safety-db
+// If not passed to NewUpdater, the master branch of github.com/snyk/safety-db
 // will be fetched.
 func WithURL(uri string) Option {
 	u, err := url.Parse(uri)
@@ -113,16 +113,16 @@ func WithURL(uri string) Option {
 }
 
 // Name implements driver.Updater.
-func (*Updater) Name() string { return "pyupio" }
+func (*Updater) Name() string { return "snyk" }
 
 // Fetch implements driver.Updater.
 func (u *Updater) Fetch(ctx context.Context, hint driver.Fingerprint) (io.ReadCloser, driver.Fingerprint, error) {
 	ctx = baggage.ContextWithValues(ctx,
-		label.String("component", "pyupio/Updater.Fetch"))
+		label.String("component", "snyk/Updater.Fetch"))
 	zlog.Info(ctx).Str("database", u.url.String()).Msg("starting fetch")
 	req := http.Request{
 		Method:     http.MethodGet,
-		Header:     http.Header{"User-Agent": {"claircore/pyupio/Updater"}},
+		Header:     http.Header{"User-Agent": {"claircore/snyk/Updater"}},
 		URL:        u.url,
 		Proto:      "HTTP/1.1",
 		ProtoMajor: 1,
@@ -149,7 +149,7 @@ func (u *Updater) Fetch(ctx context.Context, hint driver.Fingerprint) (io.ReadCl
 	case http.StatusOK:
 		// break
 	default:
-		return nil, hint, fmt.Errorf("pyupio: fetcher got unexpected HTTP response: %d (%s)", res.StatusCode, res.Status)
+		return nil, hint, fmt.Errorf("snyk: fetcher got unexpected HTTP response: %d (%s)", res.StatusCode, res.Status)
 	}
 	zlog.Debug(ctx).Msg("request ok")
 
@@ -158,7 +158,7 @@ func (u *Updater) Fetch(ctx context.Context, hint driver.Fingerprint) (io.ReadCl
 		return nil, hint, err
 	}
 
-	tf, err := tmp.NewFile("", "pyupio.")
+	tf, err := tmp.NewFile("", "snyk.")
 	if err != nil {
 		return nil, hint, err
 	}
@@ -196,7 +196,7 @@ func (u *Updater) Fetch(ctx context.Context, hint driver.Fingerprint) (io.ReadCl
 // Parse implements driver.Updater.
 func (u *Updater) Parse(ctx context.Context, r io.ReadCloser) ([]*claircore.Vulnerability, error) {
 	ctx = baggage.ContextWithValues(ctx,
-		label.String("component", "pyupio/Updater.Parse"))
+		label.String("component", "snyk/Updater.Parse"))
 	zlog.Info(ctx).Msg("parse start")
 	defer r.Close()
 	defer zlog.Info(ctx).Msg("parse done")
@@ -252,7 +252,7 @@ func init() {
 
 func (db db) Vulnerabilites(ctx context.Context, repo *claircore.Repository, updater string) ([]*claircore.Vulnerability, error) {
 	ctx = baggage.ContextWithValues(ctx,
-		label.String("component", "pyupio/db.Vulnerabilities"))
+		label.String("component", "snyk/db.Vulnerabilities"))
 	var mungeCt int
 	var ret []*claircore.Vulnerability
 	for k, m := range db {
