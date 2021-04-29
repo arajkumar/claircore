@@ -34,7 +34,7 @@ func (u *Updater) Parse(ctx context.Context, r io.ReadCloser) ([]*claircore.Vuln
 	defer zlog.Info(ctx).Msg("parse done")
 
 	var ret []*claircore.Vulnerability
-	// r has a large JSON, do a stream parsing.
+	// r is a large JSON, attempt stream parsing.
 	dec := json.NewDecoder(r)
 	// read {
 	_, err := dec.Token()
@@ -42,7 +42,7 @@ func (u *Updater) Parse(ctx context.Context, r io.ReadCloser) ([]*claircore.Vuln
 		return nil, err
 	}
 	for dec.More() {
-		// read "ecosystem":
+		// read "<language>":
 		langToken, err := dec.Token()
 		if err != nil {
 			return nil, err
@@ -52,6 +52,9 @@ func (u *Updater) Parse(ctx context.Context, r io.ReadCloser) ([]*claircore.Vuln
 			return ret, fmt.Errorf("unexpected token type %#v", lang)
 		}
 		repo, repoOk := u.langToRepo[lang]
+		if !repoOk {
+			zlog.Error(ctx).Str("lang", lang).Msg("unexpected lang")
+		}
 		// read [
 		_, err = dec.Token()
 		if err != nil {
@@ -64,8 +67,8 @@ func (u *Updater) Parse(ctx context.Context, r io.ReadCloser) ([]*claircore.Vuln
 			if err != nil {
 				return nil, err
 			}
+			// consume the stream though it is useless.
 			if !repoOk {
-				zlog.Error(ctx).Str("lang", lang).Msg("unexpected lang")
 				continue
 			}
 			for _, vv := range e.VulnerabileVersions {
@@ -78,6 +81,7 @@ func (u *Updater) Parse(ctx context.Context, r io.ReadCloser) ([]*claircore.Vuln
 						Version: vv,
 						Kind:    claircore.BINARY,
 					},
+					Updater: u.Name(),
 				}
 				ret = append(ret, &v)
 			}

@@ -6,6 +6,7 @@ require (
 	github.com/aquasecurity/go-dep-parser v0.0.0-20210329064738-2751c4603480
 	github.com/aquasecurity/go-pep440-version v0.0.0-20210121094942-22b2f8951d46
 	github.com/crgimenes/goconfig v1.2.1
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/docker-slim/docker-slim v0.0.0-20200524075151-79490f5f1cde
 	github.com/doug-martin/goqu/v8 v8.6.0
 	github.com/golang/mock v1.3.1

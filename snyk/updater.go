@@ -3,20 +3,20 @@
 package snyk
 
 import (
-	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
+	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/quay/zlog"
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/label"
 
 	"github.com/quay/claircore"
 	"github.com/quay/claircore/libvuln/driver"
-	"github.com/quay/claircore/pkg/tmp"
 )
 
 const defaultURL = `https://snyk.io/partners/api/v4/vulndb/feed.json`
@@ -25,17 +25,26 @@ var (
 	_ driver.Updater = (*Updater)(nil)
 )
 
+type LangToRepo map[string]*claircore.Repository
+
 // Updater reads a pyup formatted json database for vulnerabilities.
 //
 // The zero value is not safe to use.
 type Updater struct {
 	url        *url.URL
 	client     *http.Client
-	langToRepo map[string]*claircore.Repository
+	langToRepo LangToRepo
+	// jwt auth params
+	iss string
+	psk string
 }
 
 // NewUpdater returns a configured Updater or reports an error.
-func NewUpdater(langToRepo map[string]*claircore.Repository, opt ...Option) (*Updater, error) {
+func NewUpdater(langToRepo LangToRepo, opt ...Option) (*Updater, error) {
+	if len(langToRepo) < 1 {
+		return nil, fmt.Errorf("langToRepo is empty")
+	}
+
 	u := Updater{langToRepo: langToRepo}
 	for _, f := range opt {
 		if err := f(&u); err != nil {
@@ -59,6 +68,16 @@ func NewUpdater(langToRepo map[string]*claircore.Repository, opt ...Option) (*Up
 
 // Option controls the configuration of an Updater.
 type Option func(*Updater) error
+
+// WithAuthParams sets the iss and psk that the updater should use to generate
+// JWT Bearer Authorization for http requests.
+func WithAuthParams(iss string, psk string) Option {
+	return func(u *Updater) error {
+		u.iss = iss
+		u.psk = psk
+		return nil
+	}
+}
 
 // WithClient sets the http.Client that the updater should use for requests.
 //
@@ -91,14 +110,33 @@ func WithURL(uri string) Option {
 // Name implements driver.Updater.
 func (*Updater) Name() string { return "snyk" }
 
+func (u *Updater) getAuthToken() (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"iss": u.iss,
+		"iat": time.Now().UTC().Unix(),
+	})
+
+	// Sign and get the complete encoded token as a string using the secret
+	return token.SignedString([]byte(u.psk))
+}
+
 // Fetch implements driver.Updater.
 func (u *Updater) Fetch(ctx context.Context, hint driver.Fingerprint) (io.ReadCloser, driver.Fingerprint, error) {
 	ctx = baggage.ContextWithValues(ctx,
 		label.String("component", "snyk/Updater.Fetch"))
 	zlog.Info(ctx).Str("database", u.url.String()).Msg("starting fetch")
+
+	token, err := u.getAuthToken()
+	if err != nil {
+		return nil, "", err
+	}
+
 	req := http.Request{
-		Method:     http.MethodGet,
-		Header:     http.Header{"User-Agent": {"claircore/snyk/Updater"}},
+		Method: http.MethodGet,
+		Header: http.Header{
+			"User-Agent":    {"claircore/snyk/Updater"},
+			"Authorization": {fmt.Sprintf("Bearer %s", token)},
+		},
 		URL:        u.url,
 		Proto:      "HTTP/1.1",
 		ProtoMajor: 1,
@@ -113,9 +151,6 @@ func (u *Updater) Fetch(ctx context.Context, hint driver.Fingerprint) (io.ReadCl
 	}
 
 	res, err := u.client.Do(req.WithContext(ctx))
-	if res != nil {
-		defer res.Body.Close()
-	}
 	if err != nil {
 		return nil, hint, err
 	}
@@ -129,42 +164,11 @@ func (u *Updater) Fetch(ctx context.Context, hint driver.Fingerprint) (io.ReadCl
 	}
 	zlog.Debug(ctx).Msg("request ok")
 
-	r, err := gzip.NewReader(res.Body)
-	if err != nil {
-		return nil, hint, err
-	}
-
-	tf, err := tmp.NewFile("", "snyk.")
-	if err != nil {
-		return nil, hint, err
-	}
-	zlog.Debug(ctx).
-		Str("path", tf.Name()).
-		Msg("using tempfile")
-	success := false
-	defer func() {
-		if !success {
-			zlog.Debug(ctx).Msg("unsuccessful, cleaning up tempfile")
-			if err := tf.Close(); err != nil {
-				zlog.Warn(ctx).Err(err).Msg("failed to close tempfile")
-			}
-		}
-	}()
-
-	if _, err := io.Copy(tf, r); err != nil {
-		return nil, hint, err
-	}
-	if o, err := tf.Seek(0, io.SeekStart); err != nil || o != 0 {
-		return nil, hint, err
-	}
-	zlog.Debug(ctx).Msg("decompressed and buffered database")
-
 	if t := res.Header.Get("etag"); t != "" {
 		zlog.Debug(ctx).
 			Str("hint", t).
 			Msg("using new hint")
 		hint = driver.Fingerprint(t)
 	}
-	success = true
-	return tf, hint, nil
+	return res.Body, hint, nil
 }

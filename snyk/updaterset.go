@@ -3,6 +3,7 @@ package snyk
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/quay/claircore"
 	"github.com/quay/claircore/libvuln/driver"
@@ -14,7 +15,7 @@ func UpdaterSet(_ context.Context) (driver.UpdaterSet, error) {
 	langToRepo := map[string]*claircore.Repository{
 		"python": &python.Repository,
 	}
-	py, err := NewUpdater(langToRepo)
+	py, err := NewUpdater(langToRepo, WithAuthParams(os.Getenv("SNYK_ISS"), os.Getenv("SNYK_PSK")))
 	if err != nil {
 		return us, fmt.Errorf("failed to create snyk updater: %v", err)
 	}

@@ -17,8 +17,8 @@ import (
 	"github.com/quay/claircore/snyk"
 )
 
-func TestDB(t *testing.T) {
-	tt := []dbTestcase{
+func TestParser(t *testing.T) {
+	tt := []parserTestcase{
 		{
 			Name: "feed_python",
 			Want: []*claircore.Vulnerability{
@@ -30,7 +30,8 @@ func TestDB(t *testing.T) {
 						Version: "[2.9.0, 2.9.7)",
 						Kind:    claircore.BINARY,
 					},
-					Repo: &python.Repository,
+					Repo:    &python.Repository,
+					Updater: "snyk",
 				},
 				{
 					Name:        "SNYK-PYTHON-ABC-1234",
@@ -40,7 +41,8 @@ func TestDB(t *testing.T) {
 						Version: "[2.7.0, 2.7.17)",
 						Kind:    claircore.BINARY,
 					},
-					Repo: &python.Repository,
+					Repo:    &python.Repository,
+					Updater: "snyk",
 				},
 				{
 					Name:        "SNYK-PYTHON-XYZ-1234",
@@ -50,7 +52,8 @@ func TestDB(t *testing.T) {
 						Version: "[1.0.0, 1.0.1)",
 						Kind:    claircore.BINARY,
 					},
-					Repo: &python.Repository,
+					Repo:    &python.Repository,
+					Updater: "snyk",
 				},
 			},
 		},
@@ -61,16 +64,16 @@ func TestDB(t *testing.T) {
 	}
 }
 
-type dbTestcase struct {
+type parserTestcase struct {
 	Name string
 	Want []*claircore.Vulnerability
 }
 
-func (tc dbTestcase) filename() string {
+func (tc parserTestcase) filename() string {
 	return filepath.Join("testdata", fmt.Sprintf("%s.json", tc.Name))
 }
 
-func (tc dbTestcase) Run(t *testing.T) {
+func (tc parserTestcase) Run(t *testing.T) {
 	ctx := zlog.Test(context.Background(), t)
 
 	f, err := os.Open(tc.filename())
@@ -79,7 +82,7 @@ func (tc dbTestcase) Run(t *testing.T) {
 	}
 	defer f.Close()
 
-	langToRepo := map[string]*claircore.Repository{
+	langToRepo := snyk.LangToRepo{
 		"python": &python.Repository,
 	}
 	updater, err := snyk.NewUpdater(langToRepo)
