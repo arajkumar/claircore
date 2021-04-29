@@ -1,6 +1,7 @@
 package claircore
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -91,6 +92,23 @@ func TestVersionString(t *testing.T) {
 	for _, tc := range versiontt {
 		t.Run(tc.Name, tc.StringTest)
 	}
+}
+
+func TestRangeEncDec(t *testing.T) {
+	l := Version{
+		Kind: "test",
+		V:    [...]int32{1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+	}
+	u := Version{
+		Kind: "test",
+		V:    [...]int32{1, 0, 1, 0, 0, 0, 0, 0, 0, 0},
+	}
+	r := Range{
+		Lower: l,
+		Upper: u,
+	}
+	b, _ := json.Marshal(&r)
+	t.Errorf("@@@ %#v", string(b))
 }
 
 func TestVersionMarshal(t *testing.T) {

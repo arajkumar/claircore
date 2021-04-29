@@ -3,22 +3,17 @@
 package snyk
 
 import (
-	"archive/tar"
 	"compress/gzip"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"path/filepath"
-	"strings"
 
 	"github.com/quay/zlog"
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/label"
 
-	pep440 "github.com/aquasecurity/go-pep440-version"
 	"github.com/quay/claircore"
 	"github.com/quay/claircore/libvuln/driver"
 	"github.com/quay/claircore/pkg/tmp"
@@ -28,25 +23,20 @@ const defaultURL = `https://snyk.io/partners/api/v4/vulndb/feed.json`
 
 var (
 	_ driver.Updater = (*Updater)(nil)
-
-	defaultRepo = claircore.Repository{
-		Name: "pypi",
-		URI:  "https://pypi.org/simple",
-	}
 )
 
 // Updater reads a pyup formatted json database for vulnerabilities.
 //
 // The zero value is not safe to use.
 type Updater struct {
-	url    *url.URL
-	client *http.Client
-	repo   *claircore.Repository
+	url        *url.URL
+	client     *http.Client
+	langToRepo map[string]*claircore.Repository
 }
 
 // NewUpdater returns a configured Updater or reports an error.
-func NewUpdater(opt ...Option) (*Updater, error) {
-	u := Updater{}
+func NewUpdater(langToRepo map[string]*claircore.Repository, opt ...Option) (*Updater, error) {
+	u := Updater{langToRepo: langToRepo}
 	for _, f := range opt {
 		if err := f(&u); err != nil {
 			return nil, err
@@ -63,9 +53,6 @@ func NewUpdater(opt ...Option) (*Updater, error) {
 	if u.client == nil {
 		u.client = http.DefaultClient
 	}
-	if u.repo == nil {
-		u.repo = &defaultRepo
-	}
 
 	return &u, nil
 }
@@ -79,17 +66,6 @@ type Option func(*Updater) error
 func WithClient(c *http.Client) Option {
 	return func(u *Updater) error {
 		u.client = c
-		return nil
-	}
-}
-
-// WithRepo sets the repository information that will be associated with all the
-// vulnerabilites found.
-//
-// If not passed to NewUpdater, a default Repository will be used.
-func WithRepo(r *claircore.Repository) Option {
-	return func(u *Updater) error {
-		u.repo = r
 		return nil
 	}
 }
@@ -191,114 +167,4 @@ func (u *Updater) Fetch(ctx context.Context, hint driver.Fingerprint) (io.ReadCl
 	}
 	success = true
 	return tf, hint, nil
-}
-
-// Parse implements driver.Updater.
-func (u *Updater) Parse(ctx context.Context, r io.ReadCloser) ([]*claircore.Vulnerability, error) {
-	ctx = baggage.ContextWithValues(ctx,
-		label.String("component", "snyk/Updater.Parse"))
-	zlog.Info(ctx).Msg("parse start")
-	defer r.Close()
-	defer zlog.Info(ctx).Msg("parse done")
-
-	var db db
-	tr := tar.NewReader(r)
-	h, err := tr.Next()
-	done := false
-	for ; err == nil && !done; h, err = tr.Next() {
-		if h.Typeflag != tar.TypeReg || filepath.Base(h.Name) != "insecure_full.json" {
-			continue
-		}
-		if err := json.NewDecoder(tr).Decode(&db); err != nil {
-			return nil, err
-		}
-	}
-	if err != io.EOF {
-		return nil, err
-	}
-	zlog.Debug(ctx).
-		Int("count", len(db)).
-		Msg("found raw entries")
-
-	ret, err := db.Vulnerabilites(ctx, u.repo, u.Name())
-	if err != nil {
-		return nil, err
-	}
-	zlog.Debug(ctx).
-		Int("count", len(ret)).
-		Msg("found vulnerabilities")
-	return ret, nil
-}
-
-type db map[string]json.RawMessage
-
-type entry struct {
-	Advisory string   `json:"advisory"`
-	CVE      *string  `json:"cve"`
-	ID       string   `json:"id"`
-	Specs    []string `json:"specs"`
-	V        string   `json:"v"`
-}
-
-var vZero pep440.Version
-
-func init() {
-	var err error
-	vZero, err = pep440.Parse("0")
-	if err != nil {
-		panic(err)
-	}
-}
-
-func (db db) Vulnerabilites(ctx context.Context, repo *claircore.Repository, updater string) ([]*claircore.Vulnerability, error) {
-	ctx = baggage.ContextWithValues(ctx,
-		label.String("component", "snyk/db.Vulnerabilities"))
-	var mungeCt int
-	var ret []*claircore.Vulnerability
-	for k, m := range db {
-		if k == "$meta" {
-			continue
-		}
-		var es []entry
-		if err := json.Unmarshal(m, &es); err != nil {
-			return nil, err
-		}
-		for _, e := range es {
-			// is specifier valid
-			_, err := pep440.NewSpecifiers(e.V)
-			if err != nil {
-				zlog.Warn(ctx).
-					Str("spec", e.V).
-					Msg("malformed database entry")
-				mungeCt++
-				continue
-			}
-			v := &claircore.Vulnerability{
-				Name:        e.ID,
-				Updater:     updater,
-				Description: e.Advisory,
-				Package: &claircore.Package{
-					Name: strings.ToLower(k), // pip database lower cases all package names?
-					Kind: claircore.BINARY,
-					// pip provides a "specifier" to understand if a particular package
-					// version is affected by a vulnerability.
-					// we will store this "specifier" here indicating this vulnerability
-					// affects the package versions in this "specifier".
-					Version: e.V,
-				},
-				Repo: repo,
-			}
-			// add cve name to vuln name
-			if e.CVE != nil {
-				v.Name += fmt.Sprintf(" (%s)", *e.CVE)
-			}
-			ret = append(ret, v)
-		}
-	}
-	if mungeCt > 0 {
-		zlog.Debug(ctx).
-			Int("count", mungeCt).
-			Msg("munged bounds on some vulnerabilities 😬")
-	}
-	return ret, nil
 }

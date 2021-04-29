@@ -1,0 +1,98 @@
+{
+  "python":[
+    {
+      "creationTime": "2021-04-08T12:00:18.597317Z",
+      "credit": [
+        "Unknown"
+      ],
+      "cves": [
+        "CVE-2020-FOO1"
+      ],
+      "cvssScore": 5.5,
+      "cvssV3": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N",
+      "cwes": [
+        "CWE-200"
+      ],
+      "description": "ABC is a test vuln",
+      "disclosureTime": "2021-04-07T20:33:26Z",
+      "fixable": true,
+      "functions": [],
+      "functions_new": [],
+      "id": "SNYK-PYTHON-ABC-1234",
+      "initiallyFixedIn": [
+        "2.9.7",
+        "2.8.11",
+        "2.7.17"
+      ],
+      "language": "python",
+      "malicious": false,
+      "modificationTime": "2021-04-08T15:18:26.180771Z",
+      "package": "abc",
+      "patchExists": false,
+      "publicationTime": "2021-04-08T15:18:26.178406Z",
+      "references": [
+        {
+          "title": "GitHub Additional Information",
+          "url": "https://github.com/advisories/GHSA-86hp-cj9j-33vv"
+        },
+        {
+          "title": "GitHub Commit",
+          "url": "https://github.com/foo/barr/commit/abcd"
+        }
+      ],
+      "registry": "https://pypi.org",
+      "severity": "medium",
+      "title": "Information Exposure",
+      "url": "https://snyk.io/vuln/abc",
+      "vulnerableVersions": [
+        "[2.9.0, 2.9.7)",
+            "[2.7.0, 2.7.17)"
+            ]
+    },{
+    "creationTime": "2021-04-08T12:00:18.597317Z",
+    "credit": [
+      "Unknown"
+      ],
+      "cves": [
+        "CVE-2020-FOO2"
+      ],
+      "cvssScore": 5.5,
+      "cvssV3": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:N/A:N",
+      "cwes": [
+        "CWE-200"
+      ],
+      "description": "XYZ is a test vuln",
+      "disclosureTime": "2021-04-07T20:33:26Z",
+      "fixable": true,
+      "functions": [],
+      "functions_new": [],
+      "id": "SNYK-PYTHON-XYZ-1234",
+      "initiallyFixedIn": [
+        "1.1.0"
+      ],
+      "language": "python",
+      "malicious": false,
+      "modificationTime": "2021-04-08T15:18:26.180771Z",
+      "package": "xyz",
+      "patchExists": false,
+      "publicationTime": "2021-04-08T15:18:26.178406Z",
+      "references": [
+        {
+          "title": "GitHub Additional Information",
+          "url": "https://github.com/advisories/GHSA-86hp-cj9j-33vv"
+        },
+        {
+          "title": "GitHub Commit",
+          "url": "https://github.com/foo/barr/commit/abcd"
+        }
+      ],
+      "registry": "https://pypi.org",
+      "severity": "medium",
+      "title": "Information Exposure",
+      "url": "https://snyk.io/vuln/abc",
+      "vulnerableVersions": [
+        "[1.0.0, 1.0.1)"
+        ]
+    }
+      ]
+}
