@@ -5,14 +5,14 @@ import (
 )
 
 type Vulnerability struct {
-	ID                  string   `json:"id"`
-	Title               string   `json:"title"`
-	Description         string   `json:"description"`
-	PackageName         string   `json:"package"`
-	Severity            string   `json:"severity"`
-	URL                 string   `json:"url"`
-	VulnerabileVersions []string `json:"vulnerableVersions"`
-	InitiallyFixedIn    []string `json:"initiallyFixedIn"`
+	ID                 string   `json:"id"`
+	Title              string   `json:"title"`
+	Description        string   `json:"description"`
+	PackageName        string   `json:"package"`
+	Severity           string   `json:"severity"`
+	URL                string   `json:"url"`
+	VulnerableVersions []string `json:"vulnerableVersions"`
+	InitiallyFixedIn   []string `json:"initiallyFixedIn"`
 }
 
 // VulnTransformer is an interface exporting the necessary methods

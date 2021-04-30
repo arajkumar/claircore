@@ -50,7 +50,8 @@ var defaultMatchers = []driver.Matcher{
 	&python.Matcher{},
 	&rhel.Matcher{},
 	&suse.Matcher{},
-	&snyk.Matcher{},
+	&snyk.PythonMatcher{},
+	&snyk.MavenMatcher{},
 	&ubuntu.Matcher{},
 }
 

@@ -13,6 +13,7 @@ func UpdaterSet(_ context.Context) (driver.UpdaterSet, error) {
 	us := driver.NewUpdaterSet()
 	transformers := VulnTransformers{
 		"python": &vulntransformer.Python{},
+		"java":   &vulntransformer.Maven{},
 	}
 	py, err := NewUpdater(transformers, WithAuthParams(os.Getenv("SNYK_ISS"), os.Getenv("SNYK_PSK")))
 	if err != nil {

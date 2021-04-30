@@ -4,23 +4,23 @@ import (
 	"strings"
 
 	"github.com/quay/claircore"
-	"github.com/quay/claircore/python"
+	"github.com/quay/claircore/java"
 )
 
-type Python struct{}
+type Maven struct{}
 
-func unifiedVersionRangePython(ranges []string) string {
+func unifiedVersionRangeMaven(ranges []string) string {
 	return strings.Join(ranges, ", ")
 }
 
-func (_ *Python) VulnTransform(e *Vulnerability) []*claircore.Vulnerability {
+func (_ *Maven) VulnTransform(e *Vulnerability) []*claircore.Vulnerability {
 	v := claircore.Vulnerability{
 		Name:        e.ID,
 		Description: e.Description,
-		Repo:        &python.Repository,
+		Repo:        &java.Repository,
 		Package: &claircore.Package{
 			Name:    e.PackageName,
-			Version: unifiedVersionRangePython(e.VulnerableVersions),
+			Version: unifiedVersionRangeMaven(e.VulnerableVersions),
 			Kind:    claircore.BINARY,
 		},
 		FixedInVersion: strings.Join(e.InitiallyFixedIn, ", "),

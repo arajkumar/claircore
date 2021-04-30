@@ -9,28 +9,28 @@ import (
 )
 
 var (
-	_ driver.Matcher = (*Matcher)(nil)
+	_ driver.Matcher = (*PythonMatcher)(nil)
 )
 
-// Matcher attempts to correlate discovered python packages with reported
+// PythonMatcher attempts to correlate discovered python packages with reported
 // vulnerabilities.
-type Matcher struct{}
+type PythonMatcher struct{}
 
-// Name implements driver.Matcher.
-func (*Matcher) Name() string { return "snyk" }
+// Name implements driver.PythonMatcher.
+func (*PythonMatcher) Name() string { return "snyk-python" }
 
-// Filter implements driver.Matcher.
-func (*Matcher) Filter(record *claircore.IndexRecord) bool {
+// Filter implements driver.PythonMatcher.
+func (*PythonMatcher) Filter(record *claircore.IndexRecord) bool {
 	return record.Package.NormalizedVersion.Kind == "pep440"
 }
 
-// Query implements driver.Matcher.
-func (*Matcher) Query() []driver.MatchConstraint {
+// Query implements driver.PythonMatcher.
+func (*PythonMatcher) Query() []driver.MatchConstraint {
 	return []driver.MatchConstraint{}
 }
 
-// Vulnerable implements driver.Matcher.
-func (*Matcher) Vulnerable(ctx context.Context, record *claircore.IndexRecord, vuln *claircore.Vulnerability) (bool, error) {
+// Vulnerable implements driver.PythonMatcher.
+func (*PythonMatcher) Vulnerable(ctx context.Context, record *claircore.IndexRecord, vuln *claircore.Vulnerability) (bool, error) {
 	// if the vuln is not associated with any package,
 	// return not vulnerable.
 	if vuln.Package == nil {
