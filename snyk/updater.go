@@ -15,8 +15,8 @@ import (
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/label"
 
-	"github.com/quay/claircore"
 	"github.com/quay/claircore/libvuln/driver"
+	"github.com/quay/claircore/snyk/vulntransformer"
 )
 
 const defaultURL = `https://snyk.io/partners/api/v4/vulndb/feed.json`
@@ -25,27 +25,27 @@ var (
 	_ driver.Updater = (*Updater)(nil)
 )
 
-type LangToRepo map[string]*claircore.Repository
+type VulnTransformers map[string]vulntransformer.VulnTransformer
 
 // Updater reads a pyup formatted json database for vulnerabilities.
 //
 // The zero value is not safe to use.
 type Updater struct {
-	url        *url.URL
-	client     *http.Client
-	langToRepo LangToRepo
+	url          *url.URL
+	client       *http.Client
+	transformers VulnTransformers
 	// jwt auth params
 	iss string
 	psk string
 }
 
 // NewUpdater returns a configured Updater or reports an error.
-func NewUpdater(langToRepo LangToRepo, opt ...Option) (*Updater, error) {
-	if len(langToRepo) < 1 {
-		return nil, fmt.Errorf("langToRepo is empty")
+func NewUpdater(transformers VulnTransformers, opt ...Option) (*Updater, error) {
+	if len(transformers) < 1 {
+		return nil, fmt.Errorf("vuln transformers is empty")
 	}
 
-	u := Updater{langToRepo: langToRepo}
+	u := Updater{transformers: transformers}
 	for _, f := range opt {
 		if err := f(&u); err != nil {
 			return nil, err

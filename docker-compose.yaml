@@ -51,6 +51,8 @@ services:
       HTTP_LISTEN_ADDR: "0.0.0.0:8081"
       CONNECTION_STRING: "host=claircore-db port=5432 user=claircore dbname=claircore sslmode=disable"
       LOG_LEVEL: "debug"
+      SNYK_ISS: ${SNYK_ISS}
+      SNYK_PSK: ${SNYK_PSK}
     volumes:
       - "./:/src/claircore/:z"
     command:

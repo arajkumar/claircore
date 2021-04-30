@@ -13,17 +13,8 @@ import (
 	"go.opentelemetry.io/otel/label"
 
 	"github.com/quay/claircore"
+	"github.com/quay/claircore/snyk/vulntransformer"
 )
-
-type entry struct {
-	ID                  string   `json:"id"`
-	Title               string   `json:"title"`
-	Description         string   `json:"description"`
-	PackageName         string   `json:"package"`
-	Severity            string   `json:"severity"`
-	URL                 string   `json:"url"`
-	VulnerabileVersions []string `json:"vulnerableVersions"`
-}
 
 // Parse implements driver.Updater.
 func (u *Updater) Parse(ctx context.Context, r io.ReadCloser) ([]*claircore.Vulnerability, error) {
@@ -51,9 +42,9 @@ func (u *Updater) Parse(ctx context.Context, r io.ReadCloser) ([]*claircore.Vuln
 		if !ok {
 			return ret, fmt.Errorf("unexpected token type %#v", lang)
 		}
-		repo, repoOk := u.langToRepo[lang]
+		tx, repoOk := u.transformers[lang]
 		if !repoOk {
-			zlog.Error(ctx).Str("lang", lang).Msg("unexpected lang")
+			zlog.Info(ctx).Str("lang", lang).Msg("skip language")
 		}
 		// read [
 		_, err = dec.Token()
@@ -62,7 +53,7 @@ func (u *Updater) Parse(ctx context.Context, r io.ReadCloser) ([]*claircore.Vuln
 		}
 		// read vulnerabilities.
 		for dec.More() {
-			var e entry
+			var e vulntransformer.Vulnerability
 			err := dec.Decode(&e)
 			if err != nil {
 				return nil, err
@@ -71,20 +62,8 @@ func (u *Updater) Parse(ctx context.Context, r io.ReadCloser) ([]*claircore.Vuln
 			if !repoOk {
 				continue
 			}
-			for _, vv := range e.VulnerabileVersions {
-				v := claircore.Vulnerability{
-					Name:        e.ID,
-					Description: e.Description,
-					Repo:        repo,
-					Package: &claircore.Package{
-						Name:    e.PackageName,
-						Version: vv,
-						Kind:    claircore.BINARY,
-					},
-					Updater: u.Name(),
-				}
-				ret = append(ret, &v)
-			}
+			v := tx.VulnTransform(&e)
+			ret = append(ret, v...)
 		}
 		// read ]
 		_, err = dec.Token()

@@ -5,17 +5,16 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/quay/claircore"
 	"github.com/quay/claircore/libvuln/driver"
-	"github.com/quay/claircore/python"
+	"github.com/quay/claircore/snyk/vulntransformer"
 )
 
 func UpdaterSet(_ context.Context) (driver.UpdaterSet, error) {
 	us := driver.NewUpdaterSet()
-	langToRepo := map[string]*claircore.Repository{
-		"python": &python.Repository,
+	transformers := VulnTransformers{
+		"python": &vulntransformer.Python{},
 	}
-	py, err := NewUpdater(langToRepo, WithAuthParams(os.Getenv("SNYK_ISS"), os.Getenv("SNYK_PSK")))
+	py, err := NewUpdater(transformers, WithAuthParams(os.Getenv("SNYK_ISS"), os.Getenv("SNYK_PSK")))
 	if err != nil {
 		return us, fmt.Errorf("failed to create snyk updater: %v", err)
 	}

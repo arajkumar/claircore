@@ -1,4 +1,4 @@
-package snyk_test
+package snyk
 
 import (
 	"context"
@@ -14,13 +14,16 @@ import (
 
 	"github.com/quay/claircore"
 	"github.com/quay/claircore/python"
-	"github.com/quay/claircore/snyk"
+	"github.com/quay/claircore/snyk/vulntransformer"
 )
 
 func TestParser(t *testing.T) {
 	tt := []parserTestcase{
 		{
 			Name: "feed_python",
+			Transformers: VulnTransformers{
+				"python": &vulntransformer.Python{},
+			},
 			Want: []*claircore.Vulnerability{
 				{
 					Name:        "SNYK-PYTHON-ABC-1234",
@@ -30,8 +33,9 @@ func TestParser(t *testing.T) {
 						Version: "[2.9.0, 2.9.7)",
 						Kind:    claircore.BINARY,
 					},
-					Repo:    &python.Repository,
-					Updater: "snyk",
+					Repo:           &python.Repository,
+					Updater:        "snyk",
+					FixedInVersion: "2.9.7,2.8.11,2.7.17",
 				},
 				{
 					Name:        "SNYK-PYTHON-ABC-1234",
@@ -41,8 +45,9 @@ func TestParser(t *testing.T) {
 						Version: "[2.7.0, 2.7.17)",
 						Kind:    claircore.BINARY,
 					},
-					Repo:    &python.Repository,
-					Updater: "snyk",
+					Repo:           &python.Repository,
+					Updater:        "snyk",
+					FixedInVersion: "2.9.7,2.8.11,2.7.17",
 				},
 				{
 					Name:        "SNYK-PYTHON-XYZ-1234",
@@ -52,8 +57,9 @@ func TestParser(t *testing.T) {
 						Version: "[1.0.0, 1.0.1)",
 						Kind:    claircore.BINARY,
 					},
-					Repo:    &python.Repository,
-					Updater: "snyk",
+					Repo:           &python.Repository,
+					Updater:        "snyk",
+					FixedInVersion: "1.1.0",
 				},
 			},
 		},
@@ -65,8 +71,9 @@ func TestParser(t *testing.T) {
 }
 
 type parserTestcase struct {
-	Name string
-	Want []*claircore.Vulnerability
+	Name         string
+	Transformers VulnTransformers
+	Want         []*claircore.Vulnerability
 }
 
 func (tc parserTestcase) filename() string {
@@ -82,10 +89,7 @@ func (tc parserTestcase) Run(t *testing.T) {
 	}
 	defer f.Close()
 
-	langToRepo := snyk.LangToRepo{
-		"python": &python.Repository,
-	}
-	updater, err := snyk.NewUpdater(langToRepo)
+	updater, err := NewUpdater(tc.Transformers)
 	if err != nil {
 		t.Error(err)
 	}

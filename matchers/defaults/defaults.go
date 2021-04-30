@@ -16,6 +16,7 @@ import (
 	"github.com/quay/claircore/photon"
 	"github.com/quay/claircore/python"
 	"github.com/quay/claircore/rhel"
+	"github.com/quay/claircore/snyk"
 	"github.com/quay/claircore/suse"
 	"github.com/quay/claircore/ubuntu"
 )
@@ -49,6 +50,7 @@ var defaultMatchers = []driver.Matcher{
 	&python.Matcher{},
 	&rhel.Matcher{},
 	&suse.Matcher{},
+	&snyk.Matcher{},
 	&ubuntu.Matcher{},
 }
 
