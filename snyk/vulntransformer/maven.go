@@ -24,7 +24,7 @@ func (_ *Maven) VulnTransform(e *Vulnerability) []*claircore.Vulnerability {
 			Kind:    claircore.BINARY,
 		},
 		FixedInVersion: strings.Join(e.InitiallyFixedIn, ", "),
-		Updater:        "snyk",
+		Updater:        "snyk-maven",
 	}
 	return []*claircore.Vulnerability{&v}
 }

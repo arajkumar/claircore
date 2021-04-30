@@ -19,12 +19,13 @@ func (_ *Python) VulnTransform(e *Vulnerability) []*claircore.Vulnerability {
 		Description: e.Description,
 		Repo:        &python.Repository,
 		Package: &claircore.Package{
-			Name:    e.PackageName,
+			// PackageName is case insensitive.
+			Name:    strings.ToLower(e.PackageName),
 			Version: unifiedVersionRangePython(e.VulnerableVersions),
 			Kind:    claircore.BINARY,
 		},
 		FixedInVersion: strings.Join(e.InitiallyFixedIn, ", "),
-		Updater:        "snyk",
+		Updater:        "snyk-python",
 	}
 	return []*claircore.Vulnerability{&v}
 }
