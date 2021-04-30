@@ -8,7 +8,7 @@ import (
 
 	"github.com/quay/claircore/alpine"
 	"github.com/quay/claircore/aws"
-	"github.com/quay/claircore/crda"
+	// "github.com/quay/claircore/crda"
 	"github.com/quay/claircore/debian"
 	"github.com/quay/claircore/libvuln/driver"
 	"github.com/quay/claircore/matchers/registry"
@@ -56,7 +56,7 @@ var defaultMatchers = []driver.Matcher{
 }
 
 func inner(ctx context.Context) error {
-	registry.Register("crda", &crda.Factory{})
+	// registry.Register("crda", &crda.Factory{})
 
 	for _, m := range defaultMatchers {
 		mf := driver.MatcherStatic(m)
