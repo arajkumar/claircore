@@ -1,6 +1,7 @@
 package vulntransformer
 
 import (
+	"context"
 	"strings"
 
 	"github.com/quay/claircore"
@@ -13,7 +14,7 @@ func unifiedVersionRangeMaven(ranges []string) string {
 	return strings.Join(ranges, ", ")
 }
 
-func (_ *Maven) VulnTransform(e *Vulnerability) []*claircore.Vulnerability {
+func (_ *Maven) VulnTransform(_ context.Context, e *Vulnerability) ([]*claircore.Vulnerability, error) {
 	v := claircore.Vulnerability{
 		Name:        e.ID,
 		Description: e.Description,
@@ -26,5 +27,5 @@ func (_ *Maven) VulnTransform(e *Vulnerability) []*claircore.Vulnerability {
 		FixedInVersion: strings.Join(e.InitiallyFixedIn, ", "),
 		Updater:        "snyk-maven",
 	}
-	return []*claircore.Vulnerability{&v}
+	return []*claircore.Vulnerability{&v}, nil
 }
