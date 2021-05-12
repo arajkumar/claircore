@@ -30,17 +30,39 @@ func TestGolangVulnTransformer(t *testing.T) {
 			Version: "v0.12.4",
 			Time:    Time("2020-03-03T09:27:03Z"),
 		},
+		"/github.com/tendermint/tendermint/@v/8de846663f07e0c2b91186064aeeed3c27f111ed.info": Info{
+			Version: "v0.31.12",
+			Time:    Time("2020-04-09T13:48:13Z"),
+		},
+		"/github.com/tendermint/tendermint/@v/747f99fdc198d7ae6456b010c9b8857aae97e25f.info": Info{
+			Version: "v0.32.0",
+			Time:    Time("2019-06-25T11:57:50Z"),
+		},
+		"/github.com/tendermint/tendermint/@v/eab4d6d82b1387791fec9511ab2c40a1f71aa628.info": Info{
+			Version: "v0.32.10",
+			Time:    Time("2020-04-09T13:48:13Z"),
+		},
+		"/github.com/tendermint/tendermint/@v/af992361055b5541c1bd388994e386652e4d7254.info": Info{
+			Version: "v0.33.0",
+			Time:    Time("2020-01-15T11:45:10Z"),
+		},
+		"/github.com/tendermint/tendermint/@v/13eff7f7ed80bb5deb8d294998dc429b29bf9fe3.info": Info{
+			Version: "v0.33.3",
+			Time:    Time("2020-04-09T13:48:13Z"),
+		},
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp, ok := modMap[r.URL.Path]
 		if !ok {
-			t.Errorf("unable to find mod %s", r.URL.Path)
+			t.Logf("unable to find mod %s", r.URL.Path)
+			http.NotFound(w, r)
+		} else {
+			t.Logf("found %s ret %#v\n", r.URL.Path, resp)
 		}
 		out, err := json.Marshal(&resp)
 		if err != nil {
 			t.Errorf("mock server marshall error %v", err)
 		}
-		t.Logf("out %s %s", string(out), r.URL)
 		w.Write(out)
 	}))
 	defer srv.Close()
@@ -102,6 +124,40 @@ func TestGolangVulnTransformer(t *testing.T) {
 					Package: &claircore.Package{
 						Name:    "aahframe.work",
 						Version: "<v0.12.4||<v0.12.4-20200303092703-881dc9f71d1f",
+						Kind:    claircore.BINARY,
+					},
+					Repo:           &python.Repository,
+					Updater:        "snyk-golang",
+					FixedInVersion: "v0.12.5",
+				},
+			},
+		},
+		{
+			Name:   "pseudo versions with multiple hash ranges",
+			Server: srv,
+			Vulnerability: &Vulnerability{
+				ID:          "SNYK-GOLANG-ABC-1234",
+				Description: "ABC is a test vuln",
+				PackageName: "github.com/tendermint/tendermint/p2p",
+				VulnerableVersions: []string{
+					"<v0.12.4",
+				},
+				HashesRange: []string{
+					"=8de846663f07e0c2b91186064aeeed3c27f111ed",
+					">=747f99fdc198d7ae6456b010c9b8857aae97e25f <eab4d6d82b1387791fec9511ab2c40a1f71aa628",
+					">=af992361055b5541c1bd388994e386652e4d7254 <13eff7f7ed80bb5deb8d294998dc429b29bf9fe3",
+				},
+				InitiallyFixedIn: []string{
+					"v0.12.5",
+				},
+			},
+			Want: []*claircore.Vulnerability{
+				{
+					Name:        "SNYK-GOLANG-ABC-1234",
+					Description: "ABC is a test vuln",
+					Package: &claircore.Package{
+						Name:    "github.com/tendermint/tendermint/p2p",
+						Version: "<v0.12.4||=v0.31.12-20200409134813-8de846663f07||>=v0.32.0-20190625115750-747f99fdc198,<v0.32.10-20200409134813-eab4d6d82b13||>=v0.33.0-20200115114510-af992361055b,<v0.33.3-20200409134813-13eff7f7ed80",
 						Kind:    claircore.BINARY,
 					},
 					Repo:           &python.Repository,

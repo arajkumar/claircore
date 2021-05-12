@@ -104,7 +104,6 @@ type Info struct {
 
 func (g *golang) fetchVersionInfo(ctx context.Context, pkg, hash string) (*Info, error) {
 	url := fmt.Sprintf(defaultProxyEndPoint, g.url.String(), pkg, hash)
-	fmt.Printf(url)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	req.Header.Set("User-Agent", "claircore/crda/RemoteMatcher")
 	req.Header.Set("Content-Type", "application/json")
@@ -159,14 +158,15 @@ func trimConstraints(hash string) string {
 
 func (g *golang) fetchPseudoVersion(ctx context.Context, pkg, hashConstraint string) (string, error) {
 	mods := guessModPath(pkg)
-	hashConstraint = addCommaConstraint(hashConstraint)
 	hashes := strings.Split(hashConstraint, ",")
 	for _, h := range hashes {
 		h = trimConstraints(h)
+		// TODO: try happyEyeBall
 		for _, m := range mods {
 			info, err := g.fetchVersionInfo(ctx, m, h)
 			if err == nil {
 				hashConstraint = strings.ReplaceAll(hashConstraint, h, info.String(h))
+				break
 			}
 		}
 	}
@@ -176,7 +176,7 @@ func (g *golang) fetchPseudoVersion(ctx context.Context, pkg, hashConstraint str
 func (g *golang) convertToPseudoVersionRange(ctx context.Context, pkg string, hashesRange []string) ([]string, error) {
 	ret := make([]string, 0, len(hashesRange))
 	for _, h := range hashesRange {
-		v, _ := g.fetchPseudoVersion(ctx, pkg, h)
+		v, _ := g.fetchPseudoVersion(ctx, pkg, addCommaConstraint(h))
 		ret = append(ret, v)
 	}
 	return ret, nil
