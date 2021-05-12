@@ -74,6 +74,7 @@ func TestGolangVulnTransformer(t *testing.T) {
 		{
 			Name:   "simple without network calls",
 			Server: srv,
+			Error:  false,
 			Vulnerability: &Vulnerability{
 				ID:          "SNYK-GOLANG-ABC-1234",
 				Description: "ABC is a test vuln",
@@ -107,6 +108,7 @@ func TestGolangVulnTransformer(t *testing.T) {
 		{
 			Name:   "pseudo versions",
 			Server: srv,
+			Error:  false,
 			Vulnerability: &Vulnerability{
 				ID:          "SNYK-GOLANG-ABC-1234",
 				Description: "ABC is a test vuln",
@@ -139,6 +141,7 @@ func TestGolangVulnTransformer(t *testing.T) {
 		{
 			Name:   "semver in hashesRange",
 			Server: srv,
+			Error:  false,
 			Vulnerability: &Vulnerability{
 				ID:          "SNYK-GOLANG-ABC-1234",
 				Description: "ABC is a test vuln",
@@ -169,8 +172,42 @@ func TestGolangVulnTransformer(t *testing.T) {
 			},
 		},
 		{
+			Name:   "expect error with content",
+			Server: srv,
+			Error:  true,
+			Vulnerability: &Vulnerability{
+				ID:          "SNYK-GOLANG-ABC-1234",
+				Description: "ABC is a test vuln",
+				PackageName: "github.com/labstack/echo/v4",
+				VulnerableVersions: []string{
+					"<v0.12.4",
+				},
+				HashesRange: []string{
+					"<00",
+				},
+				InitiallyFixedIn: []string{
+					"v0.12.5",
+				},
+			},
+			Want: []*claircore.Vulnerability{
+				{
+					Name:        "SNYK-GOLANG-ABC-1234",
+					Description: "ABC is a test vuln",
+					Package: &claircore.Package{
+						Name:    "github.com/labstack/echo/v4",
+						Version: "<v0.12.4",
+						Kind:    claircore.BINARY,
+					},
+					Repo:           &python.Repository,
+					Updater:        "snyk-golang",
+					FixedInVersion: "v0.12.5",
+				},
+			},
+		},
+		{
 			Name:   "pseudo versions with multiple hash ranges",
 			Server: srv,
+			Error:  false,
 			Vulnerability: &Vulnerability{
 				ID:          "SNYK-GOLANG-ABC-1234",
 				Description: "ABC is a test vuln",
@@ -214,6 +251,7 @@ type golangVulnTestcase struct {
 	Vulnerability *Vulnerability
 	Want          []*claircore.Vulnerability
 	Server        *httptest.Server
+	Error         bool
 }
 
 func (tc golangVulnTestcase) Run(t *testing.T) {
@@ -228,7 +266,11 @@ func (tc golangVulnTestcase) Run(t *testing.T) {
 		t.Error(err)
 	}
 	got, err := transformer.VulnTransform(ctx, tc.Vulnerability)
-	if err != nil {
+	if tc.Error {
+		if err == nil {
+			t.Error("expected error, but not received")
+		}
+	} else if err != nil {
 		t.Error(err)
 	}
 	// Sort for the comparison, because the Vulnerabilities method can return

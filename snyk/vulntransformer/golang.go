@@ -169,6 +169,7 @@ func trimConstraints(hash string) string {
 func (g *golang) fetchPseudoVersion(ctx context.Context, pkg, hashConstraint string) (string, error) {
 	mods := guessModPath(pkg)
 	hashes := strings.Split(hashConstraint, ",")
+HashLabel:
 	for _, h := range hashes {
 		h = trimConstraints(h)
 		// TODO: try happyEyeBall
@@ -176,9 +177,10 @@ func (g *golang) fetchPseudoVersion(ctx context.Context, pkg, hashConstraint str
 			info, err := g.fetchVersionInfo(ctx, m, h)
 			if err == nil {
 				hashConstraint = strings.ReplaceAll(hashConstraint, h, info.String(h))
-				break
+				continue HashLabel
 			}
 		}
+		return "", fmt.Errorf("unable to find commit details for %s, commit %s", pkg, hashConstraint)
 	}
 	return hashConstraint, nil
 }
@@ -216,7 +218,10 @@ func (g *golang) fetchPseudoVersion(ctx context.Context, pkg, hashConstraint str
 func (g *golang) convertToPseudoVersionRange(ctx context.Context, pkg string, hashesRange []string) ([]string, error) {
 	ret := make([]string, 0, len(hashesRange))
 	for _, h := range hashesRange {
-		v, _ := g.fetchPseudoVersion(ctx, pkg, addCommaConstraint(h))
+		v, err := g.fetchPseudoVersion(ctx, pkg, addCommaConstraint(h))
+		if err != nil {
+			return ret, err
+		}
 		ret = append(ret, v)
 	}
 	return ret, nil
