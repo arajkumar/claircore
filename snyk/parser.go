@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/quay/zlog"
 	"go.opentelemetry.io/otel/baggage"
@@ -32,6 +33,7 @@ func (u *Updater) Parse(ctx context.Context, r io.ReadCloser) ([]*claircore.Vuln
 	if err != nil {
 		return nil, err
 	}
+	var mungeCt int
 	for dec.More() {
 		// read "<language>":
 		langToken, err := dec.Token()
@@ -62,7 +64,15 @@ func (u *Updater) Parse(ctx context.Context, r io.ReadCloser) ([]*claircore.Vuln
 			if !repoOk {
 				continue
 			}
-			v := tx.VulnTransform(&e)
+			v, err := tx.VulnTransform(ctx, &e)
+			if err != nil {
+				zlog.Warn(ctx).
+					Str("package", e.PackageName).
+					Str("version", strings.Join(e.VulnerableVersions, ",")).
+					Str("hashes", strings.Join(e.HashesRange, ",")).
+					Msg("malformed database entry")
+				mungeCt++
+			}
 			ret = append(ret, v...)
 		}
 		// read ]
@@ -75,6 +85,11 @@ func (u *Updater) Parse(ctx context.Context, r io.ReadCloser) ([]*claircore.Vuln
 	_, err = dec.Token()
 	if err != nil {
 		return nil, err
+	}
+	if mungeCt > 0 {
+		zlog.Debug(ctx).
+			Int("count", mungeCt).
+			Msg("munged bounds on some vulnerabilities 😬")
 	}
 	zlog.Debug(ctx).
 		Int("count", len(ret)).

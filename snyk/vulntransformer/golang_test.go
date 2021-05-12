@@ -50,6 +50,10 @@ func TestGolangVulnTransformer(t *testing.T) {
 			Version: "v0.33.3",
 			Time:    Time("2020-04-09T13:48:13Z"),
 		},
+		"/github.com/labstack/echo/v4/@v/v4.2.0.info": Info{
+			Version: "v4.2.0",
+			Time:    Time("2021-02-11T18:35:16Z"),
+		},
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp, ok := modMap[r.URL.Path]
@@ -124,6 +128,38 @@ func TestGolangVulnTransformer(t *testing.T) {
 					Package: &claircore.Package{
 						Name:    "aahframe.work",
 						Version: "<v0.12.4||<v0.12.4-20200303092703-881dc9f71d1f",
+						Kind:    claircore.BINARY,
+					},
+					Repo:           &python.Repository,
+					Updater:        "snyk-golang",
+					FixedInVersion: "v0.12.5",
+				},
+			},
+		},
+		{
+			Name:   "semver in hashesRange",
+			Server: srv,
+			Vulnerability: &Vulnerability{
+				ID:          "SNYK-GOLANG-ABC-1234",
+				Description: "ABC is a test vuln",
+				PackageName: "github.com/labstack/echo/v4",
+				VulnerableVersions: []string{
+					"<v0.12.4",
+				},
+				HashesRange: []string{
+					"<v4.2.0",
+				},
+				InitiallyFixedIn: []string{
+					"v0.12.5",
+				},
+			},
+			Want: []*claircore.Vulnerability{
+				{
+					Name:        "SNYK-GOLANG-ABC-1234",
+					Description: "ABC is a test vuln",
+					Package: &claircore.Package{
+						Name:    "github.com/labstack/echo/v4",
+						Version: "<v0.12.4||<v4.2.0-20210211183516-v4.2.0",
 						Kind:    claircore.BINARY,
 					},
 					Repo:           &python.Repository,

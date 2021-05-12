@@ -12,6 +12,7 @@ import (
 
 	"github.com/quay/claircore"
 	"github.com/quay/claircore/python"
+	"github.com/quay/zlog"
 )
 
 const (
@@ -103,8 +104,11 @@ type Info struct {
 }
 
 func (g *golang) fetchVersionInfo(ctx context.Context, pkg, hash string) (*Info, error) {
+	// A request shouldn't go beyound 10s.
+	tctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 	url := fmt.Sprintf(defaultProxyEndPoint, g.url.String(), pkg, hash)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(tctx, http.MethodGet, url, nil)
 	req.Header.Set("User-Agent", "claircore/crda/RemoteMatcher")
 	req.Header.Set("Content-Type", "application/json")
 	res, err := g.client.Do(req)
@@ -137,10 +141,16 @@ func (i Info) String(hash string) string {
 	if strings.Count(i.Version, "-") == 3 {
 		return i.Version
 	}
+	var trimmedHash string
+	if len(hash) >= 12 {
+		trimmedHash = hash[0:12]
+	} else {
+		trimmedHash = hash
+	}
 	// format equvalent to golang pseudo version.
 	// e.g.
 	// curl -vv https://proxy.golang.org/aahframe.work/@v/881dc9f71d1f7a4e8a9a39df9c5c081d3a2da1ec.info
-	return fmt.Sprintf("%s-%04d%02d%02d%02d%02d%02d-%s", i.Version, i.Time.Year(), i.Time.Month(), i.Time.Day(), i.Time.Hour(), i.Time.Minute(), i.Time.Second(), hash[0:12])
+	return fmt.Sprintf("%s-%04d%02d%02d%02d%02d%02d-%s", i.Version, i.Time.Year(), i.Time.Month(), i.Time.Day(), i.Time.Hour(), i.Time.Minute(), i.Time.Second(), trimmedHash)
 }
 
 func trimConstraints(hash string) string {
@@ -173,6 +183,36 @@ func (g *golang) fetchPseudoVersion(ctx context.Context, pkg, hashConstraint str
 	return hashConstraint, nil
 }
 
+// func (g *golang) fetchPseudoVersion(ctx context.Context, pkg, hashConstraint string) (string, error) {
+// 	mods := guessModPath(pkg)
+// 	hashes := strings.Split(hashConstraint, ",")
+// 	type I struct {
+// 		h    string
+// 		info *Info
+// 	}
+// 	ctrlC := make(chan I, len(hashes))
+// 	errorC := make(chan error, len(hashes)*len(mods)) // max len(mods) no of errors are possible.
+// 	defer close(errorC)
+// 	defer close(ctrlC)
+// 	for _, h := range hashes {
+// 		h = trimConstraints(h)
+// 		for _, m := range mods {
+// 			go func(m, h string) {
+// 				info, err := g.fetchVersionInfo(ctx, m, h)
+// 				if err != nil {
+// 					errorC <- err
+// 				} else {
+// 					ctrlC <- I{h: h, info: info}
+// 				}
+// 			}(m, h)
+// 		}
+// 	}
+// 	for i := range ctrlC {
+// 		hashConstraint = strings.ReplaceAll(hashConstraint, i.h, i.info.String(i.h))
+// 	}
+// 	return hashConstraint, nil
+// }
+
 func (g *golang) convertToPseudoVersionRange(ctx context.Context, pkg string, hashesRange []string) ([]string, error) {
 	ret := make([]string, 0, len(hashesRange))
 	for _, h := range hashesRange {
@@ -187,6 +227,9 @@ func unifiedVersionRangeGolang(ranges []string) string {
 }
 
 func (g *golang) VulnTransform(ctx context.Context, e *Vulnerability) ([]*claircore.Vulnerability, error) {
+	zlog.Debug(ctx).
+		Str("ID", e.ID).
+		Msg("golang ingestion")
 	pseudoRanges, err := g.convertToPseudoVersionRange(ctx, e.PackageName, e.HashesRange)
 	v := claircore.Vulnerability{
 		Name:        e.ID,
