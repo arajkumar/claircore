@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -14,12 +15,13 @@ import (
 )
 
 const (
-	defaultGolangProxyHost = "https://proxy.golang.org"
-	defaultProxyEndPoint   = "%s/%s/@v/%s.info"
+	defaultGoProxyURL    = "https://proxy.golang.org"
+	defaultProxyEndPoint = "%s/%s/@v/%s.info"
 )
 
 type golang struct {
 	client *http.Client
+	url    *url.URL
 }
 
 // Option controls the configuration of an GoVulnTransformer.
@@ -35,6 +37,14 @@ func NewGoVulnTransformer(opt ...Option) (*golang, error) {
 	if g.client == nil {
 		g.client = http.DefaultClient
 	}
+
+	if g.url == nil {
+		var err error
+		g.url, err = url.Parse(defaultGoProxyURL)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return &g, nil
 }
 
@@ -44,6 +54,16 @@ func NewGoVulnTransformer(opt ...Option) (*golang, error) {
 func WithClient(c *http.Client) Option {
 	return func(g *golang) error {
 		g.client = c
+		return nil
+	}
+}
+
+// WithGoProxyURL sets the server host name that the matcher should use for requests.
+//
+// If not passed to NewGoVulnTransformer, defaultGoProxyURL will be used.
+func WithGoProxyURL(url *url.URL) Option {
+	return func(g *golang) error {
+		g.url = url
 		return nil
 	}
 }
@@ -83,11 +103,9 @@ type Info struct {
 }
 
 func (g *golang) fetchVersionInfo(ctx context.Context, pkg, hash string) (*Info, error) {
-	// A request shouldn't go beyound 5s.
-	tctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	url := fmt.Sprintf(defaultProxyEndPoint, defaultGolangProxyHost, pkg, hash)
-	req, err := http.NewRequestWithContext(tctx, http.MethodGet, url, nil)
+	url := fmt.Sprintf(defaultProxyEndPoint, g.url.String(), pkg, hash)
+	fmt.Printf(url)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	req.Header.Set("User-Agent", "claircore/crda/RemoteMatcher")
 	req.Header.Set("Content-Type", "application/json")
 	res, err := g.client.Do(req)
@@ -126,15 +144,33 @@ func (i Info) String(hash string) string {
 	return fmt.Sprintf("%s-%04d%02d%02d%02d%02d%02d-%s", i.Version, i.Time.Year(), i.Time.Month(), i.Time.Day(), i.Time.Hour(), i.Time.Minute(), i.Time.Second(), hash[0:12])
 }
 
-func (g *golang) fetchPseudoVersion(ctx context.Context, pkg, hash string) (string, error) {
-	mods := guessModPath(pkg)
-	for _, m := range mods {
-		info, err := g.fetchVersionInfo(ctx, m, hash)
-		if err == nil {
-			return info.String(hash), nil
+func trimConstraints(hash string) string {
+	trimed := make([]rune, 0, len(hash))
+	for _, h := range hash {
+		switch h {
+		case '<', '>', '=', '*':
+			continue
+		default:
+			trimed = append(trimed, h)
 		}
 	}
-	return "", nil
+	return string(trimed)
+}
+
+func (g *golang) fetchPseudoVersion(ctx context.Context, pkg, hashConstraint string) (string, error) {
+	mods := guessModPath(pkg)
+	hashConstraint = addCommaConstraint(hashConstraint)
+	hashes := strings.Split(hashConstraint, ",")
+	for _, h := range hashes {
+		h = trimConstraints(h)
+		for _, m := range mods {
+			info, err := g.fetchVersionInfo(ctx, m, h)
+			if err == nil {
+				hashConstraint = strings.ReplaceAll(hashConstraint, h, info.String(h))
+			}
+		}
+	}
+	return hashConstraint, nil
 }
 
 func (g *golang) convertToPseudoVersionRange(ctx context.Context, pkg string, hashesRange []string) ([]string, error) {

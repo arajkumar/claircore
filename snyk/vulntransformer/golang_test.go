@@ -3,10 +3,9 @@ package vulntransformer
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
+	"net/url"
 	"sort"
 	"testing"
 	"time"
@@ -19,20 +18,12 @@ import (
 	"github.com/quay/claircore/python"
 )
 
-type modGuess struct {
-	Name   string
-	Pkg    string
-	Hash   string
-	Want   string
-	client *http.Client
-}
-
 func Time(s string) time.Time {
 	t, _ := time.Parse(time.RFC3339, s)
 	return t
 }
 
-func TestGolangModGuess(t *testing.T) {
+func TestGolangVulnTransformer(t *testing.T) {
 	t.Parallel()
 	modMap := map[string]Info{
 		"/aahframe.work/@v/881dc9f71d1f7a4e8a9a39df9c5c081d3a2da1ec.info": Info{
@@ -49,59 +40,14 @@ func TestGolangModGuess(t *testing.T) {
 		if err != nil {
 			t.Errorf("mock server marshall error %v", err)
 		}
+		t.Logf("out %s %s", string(out), r.URL)
 		w.Write(out)
 	}))
 	defer srv.Close()
-	tt := []modGuess{
-		{
-			Name:   "mod in root path",
-			client: srv.Client(),
-			Pkg:    "aahframe.work",
-			Hash:   "881dc9f71d1f7a4e8a9a39df9c5c081d3a2da1ec",
-			Want:   "v0.12.4-20200303092703-881dc9f71d1f",
-		},
-		// {
-		// 	Name: "two slash path mod",
-		// 	Pkg:  "foo/bar",
-		// 	Want: []string{
-		// 		"foo/bar",
-		// 		"foo",
-		// 	},
-		// },
-		// {
-		// 	Name: "three slash path mod",
-		// 	Pkg:  "foo/bar/boss",
-		// 	Want: []string{
-		// 		"foo/bar/boss",
-		// 		"foo/bar",
-		// 		"foo",
-		// 	},
-		// },
-	}
-	for _, tc := range tt {
-		t.Run(tc.Name, tc.Run)
-	}
-}
-
-func (tc modGuess) Run(t *testing.T) {
-	ctx := zlog.Test(context.Background(), t)
-	g, err := NewGoVulnTransformer(WithClient(tc.client))
-	if err != nil {
-		t.Error(err)
-	}
-	got, err := g.fetchPseudoVersion(ctx, tc.Pkg, tc.Hash)
-	if err != nil {
-		t.Error(err)
-	}
-	if !cmp.Equal(tc.Want, got) {
-		t.Error(cmp.Diff(tc.Want, got))
-	}
-}
-
-func TestGolangVulnTransformer(t *testing.T) {
 	tt := []golangVulnTestcase{
 		{
-			Name: "simple without network calls",
+			Name:   "simple without network calls",
+			Server: srv,
 			Vulnerability: &Vulnerability{
 				ID:          "SNYK-GOLANG-ABC-1234",
 				Description: "ABC is a test vuln",
@@ -133,25 +79,20 @@ func TestGolangVulnTransformer(t *testing.T) {
 			},
 		},
 		{
-			Name: "pseudo versions",
+			Name:   "pseudo versions",
+			Server: srv,
 			Vulnerability: &Vulnerability{
 				ID:          "SNYK-GOLANG-ABC-1234",
 				Description: "ABC is a test vuln",
-				PackageName: "abc",
+				PackageName: "aahframe.work",
 				VulnerableVersions: []string{
-					">= 2.9.0 < 2.9.7",
-					">= 2.7.0 < 2.7.17",
-					"< 1.9",
+					"<v0.12.4",
 				},
 				HashesRange: []string{
-					">= 2.9.0 < 2.9.7",
-					">= 2.7.0 < 2.7.17",
-					"< 1.9",
+					"<881dc9f71d1f7a4e8a9a39df9c5c081d3a2da1ec",
 				},
 				InitiallyFixedIn: []string{
-					"2.9.7",
-					"2.8.11",
-					"2.7.17",
+					"v0.12.5",
 				},
 			},
 			Want: []*claircore.Vulnerability{
@@ -159,13 +100,13 @@ func TestGolangVulnTransformer(t *testing.T) {
 					Name:        "SNYK-GOLANG-ABC-1234",
 					Description: "ABC is a test vuln",
 					Package: &claircore.Package{
-						Name:    "abc",
-						Version: ">=2.9.0,<2.9.7||>=2.7.0,<2.7.17||<1.9",
+						Name:    "aahframe.work",
+						Version: "<v0.12.4||<v0.12.4-20200303092703-881dc9f71d1f",
 						Kind:    claircore.BINARY,
 					},
 					Repo:           &python.Repository,
 					Updater:        "snyk-golang",
-					FixedInVersion: "2.9.7, 2.8.11, 2.7.17",
+					FixedInVersion: "v0.12.5",
 				},
 			},
 		},
@@ -180,16 +121,17 @@ type golangVulnTestcase struct {
 	Name          string
 	Vulnerability *Vulnerability
 	Want          []*claircore.Vulnerability
-}
-
-func (tc golangVulnTestcase) filename() string {
-	return filepath.Join("testdata", fmt.Sprintf("%s.json", tc.Name))
+	Server        *httptest.Server
 }
 
 func (tc golangVulnTestcase) Run(t *testing.T) {
 	ctx := zlog.Test(context.Background(), t)
 
-	transformer, err := NewGoVulnTransformer()
+	u, err := url.Parse(tc.Server.URL)
+	if err != nil {
+		t.Error(err)
+	}
+	transformer, err := NewGoVulnTransformer(WithClient(tc.Server.Client()), WithGoProxyURL(u))
 	if err != nil {
 		t.Error(err)
 	}
